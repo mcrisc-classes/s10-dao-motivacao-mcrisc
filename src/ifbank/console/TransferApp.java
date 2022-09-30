@@ -60,6 +60,16 @@ public class TransferApp {
 					titularDestino = consultarCliente(ps, contaDestino);
 				}
 				
+				if (titularOrigem == null) {
+					System.err.println("Conta Origem não encontrada.");
+					continue;
+				}
+
+				if (titularDestino == null) {
+					System.err.println("Conta Destino não encontrada.");
+					continue;
+				}
+				
 				
 				System.out.println();
 				System.out.println("== Transferindo ==");
