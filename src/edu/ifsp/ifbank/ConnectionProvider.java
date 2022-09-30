@@ -8,8 +8,8 @@ import java.util.logging.Logger;
 public class ConnectionProvider {
 	private static Logger logger = Logger.getLogger("edu.ifsp.ifbank");
 	private static final String DB_NAME = "financas";
-	private static final String DB_USER = "dsi";
-	private static final String DB_PASSWORD = "dsi";
+	private static final String DB_USER = "root";
+	private static final String DB_PASSWORD = "root";
 	
 	static {
 		try {
