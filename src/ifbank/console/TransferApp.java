@@ -1,13 +1,15 @@
 package ifbank.console;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Locale;
 import java.util.Scanner;
 
-import edu.ifsp.ifbank.ConnectionProvider;
+import edu.ifsp.ifbank.modelo.Pessoa;
+import edu.ifsp.ifbank.persistencia.PersistenceException;
+import edu.ifsp.ifbank.persistencia.PessoaDAO;
+import edu.ifsp.ifbank.persistencia.TransferenciaDAO;
 
 public class TransferApp {
 	private static final Locale BRAZIL = new Locale("pt", "br");
@@ -19,52 +21,34 @@ public class TransferApp {
 		char keepRunning = 'S';
 		
 		
-		try (Connection conn = ConnectionProvider.getConnection()) {
-			conn.setAutoCommit(false);
-
+		Scanner sc = new Scanner(System.in);
+		sc.useLocale(BRAZIL);			
 		
-			Scanner sc = new Scanner(System.in);
-			sc.useLocale(BRAZIL);			
+		while (keepRunning == 'S') {
+			System.out.println("Transferências on-line");
 			
-			while (keepRunning == 'S') {
-				System.out.println("Transferências on-line");
-				
-				System.out.print("Conta de origem: ");
-				contaOrigem = sc.nextInt();
-				
-				System.out.print("Conta de destino: ");
-				contaDestino = sc.nextInt();
+			System.out.print("Conta de origem: ");
+			contaOrigem = sc.nextInt();
+			
+			System.out.print("Conta de destino: ");
+			contaDestino = sc.nextInt();
+
+			System.out.print("Valor (formato: 0,00): ");
+			valor = sc.nextDouble();
+			
+			try {
+				PessoaDAO pessoaDao = new PessoaDAO();
+				Pessoa p = pessoaDao.findByConta(contaOrigem);
+				String titularOrigem = p.getNome();
 	
-				System.out.print("Valor (formato: 0,00): ");
-				valor = sc.nextDouble();
-				
-				/* TODO: buscar nome do titular
-				 * - Use a variável `contaOrigem` para buscar o nome do titular da conta no banco de dados
-				 * - Se a conta não existir, mostre uma mensagem de erro e reinicie o programa (basta 
-				 * executar o comando `continue`, para para voltar ao início `while`).
-				 */
-				String titularOrigem = "titular1";
-				
-				
-				
-				/* TODO: buscar nome do titular
-				 * - Use a variável `contaDestino` para buscar o nome do titular da conta no banco de dados
-				 * - Se a conta não existir, mostre uma mensagem de erro e reinicie o programa.
-				 */
-				String titularDestino = "titular2";
-
-				try (PreparedStatement ps = conn.prepareStatement(
-						"select p.nome from pessoa p inner join conta c on c.titular = p.id where c.numero = ?;")) {
-
-					titularOrigem = consultarCliente(ps, contaOrigem);
-					titularDestino = consultarCliente(ps, contaDestino);
-				}
+				p = pessoaDao.findByConta(contaDestino);
+				String titularDestino = p.getNome();
 				
 				if (titularOrigem == null) {
 					System.err.println("Conta Origem não encontrada.");
 					continue;
 				}
-
+	
 				if (titularDestino == null) {
 					System.err.println("Conta Destino não encontrada.");
 					continue;
@@ -76,53 +60,19 @@ public class TransferApp {
 				System.out.printf("%s -> %s\n", titularOrigem, titularDestino);
 				System.out.println("Valor: " + String.format(BRAZIL, "%.2f", valor));
 				
-				/* TODO: realizar transferência
-				 * Execute aqui o procedimento para realizar a transação que representa a transferência bancária
-				 */
-				try (
-						PreparedStatement saque = conn
-								.prepareStatement("UPDATE conta SET saldo = (saldo - ?) WHERE numero = ?;");
-						PreparedStatement deposito = conn
-								.prepareStatement("UPDATE conta SET saldo = (saldo + ?) WHERE numero = ?;");
-						PreparedStatement movimentacao = conn
-								.prepareStatement("INSERT INTO movimentacao (origem, destino, valor) VALUES (?, ?, ?);");) {
-					
+				TransferenciaDAO dao = new TransferenciaDAO();
+				dao.transferir(contaOrigem, contaDestino, valor);
 				
-					saque.setDouble(1, valor);
-					saque.setInt(2, contaOrigem);
-					saque.executeUpdate();
-					
-					deposito.setDouble(1, valor);
-					deposito.setInt(2, contaDestino);
-					deposito.executeUpdate();
-					
-					movimentacao.setInt(1, contaOrigem);
-					movimentacao.setInt(2, contaDestino);
-					movimentacao.setDouble(3, valor);
-					movimentacao.executeUpdate();				
-					
-					conn.commit();
-
-				} catch(SQLException e) {
-					conn.rollback();
-					throw e;
-				}
-
-				
-				System.out.print("Continuar [S/N]? ");
-				keepRunning = sc.next().toUpperCase().charAt(0);
+			} catch (PersistenceException e) {
+				e.printStackTrace();
 			}
 			
-			sc.close();
-			
-			
-		} catch (SQLException e) {
-			e.printStackTrace();
+			System.out.print("Continuar [S/N]? ");
+			keepRunning = sc.next().toUpperCase().charAt(0);
 		}
 		
-		/* TODO: feche a conexão com o banco de dados
-		 */
-		
+		sc.close();
+			
 		System.out.println("-- fim --");
 	}
 
