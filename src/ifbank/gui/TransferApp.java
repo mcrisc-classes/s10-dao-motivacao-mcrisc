@@ -8,14 +8,9 @@ import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
-import java.util.logging.Logger;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -28,13 +23,14 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.border.BevelBorder;
 
-import edu.ifsp.ifbank.ConnectionProvider;
+import edu.ifsp.ifbank.modelo.Pessoa;
+import edu.ifsp.ifbank.persistencia.PersistenceException;
+import edu.ifsp.ifbank.persistencia.PessoaDAO;
+import edu.ifsp.ifbank.persistencia.TransferenciaDAO;
 
 
 
 public class TransferApp {
-	private static Logger logger = Logger.getLogger("edu.ifsp.ifbank");
-	
 	private static final Locale BRAZIL = new Locale("pt", "br");
 	private JLabel titularOrigemLabel;
 	private JFormattedTextField contaOrigemText;
@@ -45,8 +41,6 @@ public class TransferApp {
 	private JButton transfer;
 	private JButton exit;
 	private JFrame frame;
-	
-	private Connection conn;
 
 
 	private void createAndShowGUI() {
@@ -104,34 +98,12 @@ public class TransferApp {
 
 			@Override
 			protected Void doInBackground() throws Exception {
-				try (
-						PreparedStatement saque = conn
-								.prepareStatement("UPDATE conta SET saldo = (saldo - ?) WHERE numero = ?;");
-						PreparedStatement deposito = conn
-								.prepareStatement("UPDATE conta SET saldo = (saldo + ?) WHERE numero = ?;");
-						PreparedStatement movimentacao = conn
-								.prepareStatement("INSERT INTO movimentacao (origem, destino, valor) VALUES (?, ?, ?);");) {
-					
-				
-					saque.setDouble(1, valor.doubleValue());
-					saque.setInt(2, contaOrigem.intValue());
-					saque.executeUpdate();
-					
-					deposito.setDouble(1, valor.doubleValue());
-					deposito.setInt(2, contaDestino.intValue());
-					deposito.executeUpdate();
-					
-					movimentacao.setInt(1, contaOrigem.intValue());
-					movimentacao.setInt(2, contaDestino.intValue());
-					movimentacao.setDouble(3, valor.doubleValue());
-					movimentacao.executeUpdate();				
-					
-					conn.commit();
 
-				} catch(SQLException e) {
-					conn.rollback();
-					throw e;
-				}
+				TransferenciaDAO dao = new TransferenciaDAO();
+				dao.transferir(
+						contaOrigem.intValue(), 
+						contaDestino.intValue(), 
+						valor.doubleValue());
 				
 				return null;
 			}
@@ -160,21 +132,12 @@ public class TransferApp {
 		 */
 		SwingWorker<String, Void> worker = new SwingWorker<>() {
 			@Override
-			protected String doInBackground() throws SQLException {
-				String nome = null;
+			protected String doInBackground() throws PersistenceException {
+				
+				PessoaDAO dao = new PessoaDAO();
+				Pessoa pessoa = dao.findByConta(numeroConta);
 
-				try (PreparedStatement ps = conn.prepareStatement(
-						"select p.nome from pessoa p inner join conta c on c.titular = p.id where c.numero = ?;")) {
-					ps.setInt(1, numeroConta);
-					
-					try (ResultSet rs = ps.executeQuery();) {
-						if (rs.next()) {
-							nome = rs.getString("nome");
-						}
-					}
-				}
-
-				return nome;
+				return pessoa.getNome();
 			}
 
 			@Override
@@ -204,7 +167,6 @@ public class TransferApp {
 
 		if (answer == JOptionPane.YES_OPTION) {
 			frame.setVisible(false);			
-			releaseConnection();
 			frame.dispose();
 		}
 	}
@@ -365,32 +327,14 @@ public class TransferApp {
 		return panel;
 	}
 
-
-	private void connectDatabase() throws SQLException {
-		conn = ConnectionProvider.getConnection();
-		conn.setAutoCommit(false);
-		logger.info("Database: connected");		
-	}
-
-	private void releaseConnection() {
-		if (conn != null) {
-			try {
-				conn.close();
-				logger.info("Database connection released.");
-			} catch (SQLException e) {
-				e.printStackTrace();
-			}
-		}
-	}
 	
 	public static void main(String[] args) {
-		TransferApp app = new TransferApp();
-		try {
-			app.connectDatabase();
-			app.createAndShowGUI();			
-		} catch (SQLException e) {			
-			e.printStackTrace();
-		}
-		
+			TransferApp app = new TransferApp();
+			app.createAndShowGUI();					
 	}
 }
+
+
+
+
+
